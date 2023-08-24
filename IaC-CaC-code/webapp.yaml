@@ -1,0 +1,14 @@
+---
+- name: Install Docker & Run WebApp
+  hosts: all
+  remote_user: ubuntu
+  become: yes
+  vars_prompt:
+    - name: git_user
+      private: no
+    - name: git_password
+      private: yes
+
+  roles:
+    - docker
+    - webapp

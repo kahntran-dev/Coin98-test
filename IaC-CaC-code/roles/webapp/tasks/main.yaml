@@ -1,0 +1,59 @@
+---
+- name: Clone repository
+  git:
+    repo: "https://{{git_user|urlencode()}}:{{git_password|urlencode()}}@github.com/kahntran/test01.git"
+    dest: "/tmp/test01"
+    update: yes
+
+- name: remove visibility of credentials
+  command:
+    cmd: git remote set-url origin https://github.com/kahntran/test01.git
+    chdir: "/tmp/test01"
+
+- name: Copy .env.example to .env
+  copy:
+    src: /tmp/test01/.env.example
+    dest: /tmp/test01/.env
+    remote_src: yes
+- name: set DB_HOST=mysql
+  lineinfile: dest=/tmp/test01/.env regexp='^DB_HOST=' line=DB_HOST=mysql
+- name: set DB_USERNAME=sail
+  lineinfile: dest=/tmp/test01/.env regexp='^DB_USERNAME=' line=DB_USERNAME=sail
+- name: set DB_PASSWORD=password
+  lineinfile: dest=/tmp/test01/.env regexp='^DB_PASSWORD=' line=DB_PASSWORD=password
+
+- name: Docker | Install composer packages
+  shell: |
+    docker run --rm \
+      -v $(pwd):/app \
+      composer install
+  args:
+    chdir: /tmp/test01
+
+- name: Run Laravel
+  shell: ./vendor/bin/sail up -d
+  args:
+    chdir: /tmp/test01
+
+- name: Retrieve Name of Docker Container
+  shell: docker ps -f 'name=laravel.test*' --format \{\{' .Names '\}\}
+  register: Name
+
+- name: Generate the application encryption key
+  shell: docker exec {{ Name.stdout }} php artisan key:generate
+  args:
+    chdir: /tmp/test01
+
+- name: Make sure the remote app root exists and has the right permissions
+  file:
+    path: "/tmp/test01"
+    state: directory
+    mode: '0755'
+    owner: "ubuntu"
+    group: "ubuntu"
+
+- name: Fix permissions
+  shell: "docker exec {{ Name.stdout }} chown -R sail: ./"
+  args:
+    chdir: /tmp/test01
+
